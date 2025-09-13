@@ -28,6 +28,12 @@ namespace Uphill.Scripts
 
         private Tweener _limbTweener = default!;
 
+        private void Start()
+        {
+            _sourcePosition = transform.position;
+            _destinationPosition = transform.position;
+        }
+
         public void Stretch(Vector3 direction)
         {
             if (_limbTweener == null || !_limbTweener.IsActive())
@@ -37,11 +43,22 @@ namespace Uphill.Scripts
 
                 _limbTweener = DOVirtual
                     .Float(0, 1, _stretchability / _stretchVelocity, OnUpdateStretchable)
-                    .SetEase(Ease.Linear);
+                    .SetEase(Ease.Linear)
+                    .OnComplete(Unstretch);
 
                 Grabber.Entered -= OnEntered;
                 Grabber.Entered += OnEntered;
             }
+        }
+
+        private void Unstretch()
+        {
+            _sourcePosition = _destinationPosition;
+            _destinationPosition = transform.position;
+
+            _limbTweener = DOVirtual
+                .Float(0, 1, _stretchability / _stretchVelocity, OnUpdateStretchable)
+                .SetEase(Ease.Linear);
         }
 
         public void UpdateLimb() => UpdateStretchable(_destinationPosition);

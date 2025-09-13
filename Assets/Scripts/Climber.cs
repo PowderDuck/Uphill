@@ -17,6 +17,8 @@ namespace Uphill.Scripts
         [SerializeField] private Limb _rightLeg = default!;
 
         [SerializeField] private float _adjustmentDuration = 0.75f;
+        [SerializeField] private AnimationCurve _positionCurve = default!;
+        [SerializeField] private AnimationCurve _rotationCurve = default!;
 
         private Dictionary<LimbType, Limb> _limbs { get; set; } = default!;
 
@@ -71,7 +73,7 @@ namespace Uphill.Scripts
                 var rightDirection = _rightArm.Grabber.transform.position - _rightLeg.Grabber.transform.position;
 
                 _sourcePosition = transform.position;
-                _destinationPosition = Vector3.zero;
+                _destinationPosition = GetOffsetPosition();
 
                 _sourceRotation = transform.rotation;
                 _destinationRotation = Quaternion.LookRotation(
@@ -80,27 +82,38 @@ namespace Uphill.Scripts
 
                 _transformTweener?.Kill();
                 _transformTweener = DOVirtual
-                    .Float(0, 1, _adjustmentDuration, UpdateTransform)
+                    .Float(0, 1, _adjustmentDuration, OnUpdateTransform)
                     .SetEase(Ease.Linear);
             }
         }
 
-        private void UpdateTransform(float percentage)
+        private void OnUpdateTransform(float percentage)
         {
             transform.SetPositionAndRotation(
-                Vector3.Lerp(
+                Vector3.LerpUnclamped(
                     _sourcePosition,
                     _destinationPosition,
-                    percentage),
-                Quaternion.Lerp(
+                    _positionCurve.Evaluate(percentage)),
+                Quaternion.LerpUnclamped(
                 _sourceRotation,
                 _destinationRotation,
-                percentage));
+                _rotationCurve.Evaluate(percentage)));
 
             foreach (var limb in _limbs.Values)
             {
                 limb.UpdateLimb();
             }
+        }
+
+        private Vector3 GetOffsetPosition()
+        {
+            var averagePosition = Vector3.zero;
+            foreach (var limb in _limbs.Values)
+            {
+                averagePosition += limb.Grabber.transform.position;
+            }
+
+            return averagePosition / _limbs.Values.Count;
         }
 
         private void OnDestroy()
