@@ -2,6 +2,7 @@ using System;
 using DG.Tweening;
 using UnityEngine;
 using Uphill.Scripts.Climbables;
+using Uphill.Scripts.Consumables;
 using Uphill.Scripts.Enums;
 using Uphill.Scripts.Events;
 
@@ -16,9 +17,9 @@ namespace Uphill.Scripts
         [SerializeField, Tooltip("Speed Per Second")] private float _stretchVelocity = 1f;
 
         [field: SerializeField]
-        public Grabber Grabber { get; private set; }
+        public Grabber Grabber { get; private set; } = default!;
 
-        public Action<LimbEnteredEventArgs> Entered;
+        public event Action<LimbEnteredEventArgs>? Entered;
 
         private Vector3 _stretchLocalScale = Vector3.one;
         private Vector3 _stretchLocalPosition = Vector3.zero;
@@ -46,33 +47,32 @@ namespace Uphill.Scripts
                     .SetEase(Ease.Linear)
                     .OnComplete(Unstretch);
 
-                Grabber.Entered -= OnEntered;
-                Grabber.Entered += OnEntered;
+                Grabber.ClimbableEntered -= OnClimbableEntered;
+                Grabber.ClimbableEntered += OnClimbableEntered;
+
+                Grabber.ConsumableEntered -= OnConsumableEntered;
+                Grabber.ConsumableEntered += OnConsumableEntered;
             }
         }
 
         private void Unstretch()
         {
-            _sourcePosition = _destinationPosition;
+            _sourcePosition = Grabber.transform.position;
             _destinationPosition = transform.position;
 
+            _limbTweener?.Kill();
             _limbTweener = DOVirtual
                 .Float(0, 1, _stretchability / _stretchVelocity, OnUpdateStretchable)
                 .SetEase(Ease.Linear);
         }
 
-        public void UpdateLimb() => UpdateStretchable(_destinationPosition);
+        public void UpdateLimb() => OnUpdateStretchable(1f);
 
         private void OnUpdateStretchable(float percentage)
         {
             var targetPoint = Vector3.Lerp(
                 _sourcePosition, _destinationPosition, percentage);
 
-            UpdateStretchable(targetPoint);
-        }
-
-        private void UpdateStretchable(Vector3 targetPoint)
-        {
             var direction = targetPoint - transform.position;
 
             transform.eulerAngles = new(
@@ -87,13 +87,13 @@ namespace Uphill.Scripts
             _stretchableTransform.localPosition = _stretchLocalPosition;
             _stretchableTransform.localScale = _stretchLocalScale;
 
-            Grabber.transform.position = targetPoint;
+            Grabber.SetPosition(targetPoint, percentage);
         }
 
-        private void OnEntered(Climbable climbable)
+        private void OnClimbableEntered(Climbable climbable)
         {
             _limbTweener?.Kill();
-            Grabber.Entered -= OnEntered;
+            Grabber.ClimbableEntered -= OnClimbableEntered;
 
             _destinationPosition = climbable.transform.position;
             UpdateLimb();
@@ -101,9 +101,17 @@ namespace Uphill.Scripts
             Entered?.Invoke(new(_limbType));
         }
 
+        private void OnConsumableEntered(Consumable _)
+        {
+            Grabber.ConsumableEntered -= OnConsumableEntered;
+
+            Unstretch();
+        }
+
         private void OnDestroy()
         {
-            Grabber.Entered -= OnEntered;
+            Grabber.ClimbableEntered -= OnClimbableEntered;
+            Grabber.ConsumableEntered -= OnConsumableEntered;
         }
     }
 }

@@ -1,19 +1,21 @@
 using System;
 using UnityEngine;
-using Uphill.Scripts.Enums;
 
 namespace Uphill.Scripts.Events
 {
     public class LimbHitboxInitiatedEventArgs : EventArgs
     {
-        public LimbType LimbType { get; }
-
         public Vector2 Delta { get; }
+        public Vector2 InitialPosition { get; }
 
-        public LimbHitboxInitiatedEventArgs(LimbType limbType, Vector2 delta)
+        public double HoldDuration { get; }
+
+        public LimbHitboxInitiatedEventArgs(
+            Vector2 delta, Vector2 initialPosition, double holdDuration)
         {
-            LimbType = limbType;
             Delta = delta;
+            InitialPosition = initialPosition;
+            HoldDuration = holdDuration;
         }
     }
 }

@@ -156,7 +156,7 @@ SpriteRenderer:
   m_LightmapParameters: {fileID: 0}
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 1
+  m_SortingOrder: 3
   m_Sprite: {fileID: -9095717837082945937, guid: bd3cb4af8406d4436a2ae8c2aafe1f8d, type: 3}
   m_Color: {r: 0.18039215, g: 0.39379635, b: 0.93333334, a: 1}
   m_FlipX: 0
@@ -216,5 +216,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _limbType: 0
   _stretchableTransform: {fileID: 7557258806939065108}
+  _stretchability: 5
   _stretchVelocity: 10
   <Grabber>k__BackingField: {fileID: 3938326138709702992}

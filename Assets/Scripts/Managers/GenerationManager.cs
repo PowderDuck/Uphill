@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Uphill.Scripts.Sections;
 
@@ -6,7 +7,7 @@ namespace Uphill.Scripts.Managers
 {
     public class GenerationManager : MonoBehaviour
     {
-        [SerializeField] private List<SectionController> _sections = default!;
+        [SerializeField] private List<SectionBase> _sections = default!;
         [SerializeField] private Vector2 _gridSize = new(5, 5);
         [SerializeField] private Vector2 _reachGridSize = new(3, 3);
         [SerializeField] private Transform _gridHolder = default!;
@@ -14,16 +15,19 @@ namespace Uphill.Scripts.Managers
         [SerializeField] private Climber _climber = default!;
 
         private Vector2 _currentGridPosition = Vector2.zero;
-        private Vector2 _previousGridPosition { get; set; } = Vector2.zero;
+        private Vector2 _previousGridPosition { get; set; } = -Vector3.up;
 
-        private Dictionary<Vector2, SectionController> _sectionGrid { get; } = new();
-        private List<SectionController> _activeControllers { get; } = new();
+        private Dictionary<Vector2, SectionBase> _sectionGrid { get; } = new();
+        private List<SectionBase> _activeSections { get; } = new();
+
+        private void Start() => _sections.Sort((a, b) =>
+            a.OperatingHeight.CompareTo(b.OperatingHeight));
 
         private void FixedUpdate()
         {
             _currentGridPosition.Set(
-                Mathf.Floor(_climber.transform.position.x / _gridSize.x),
-                Mathf.Floor(_climber.transform.position.y / _gridSize.y));
+                Mathf.Floor((_climber.transform.position.x + (_gridSize.x / 2f)) / _gridSize.x),
+                Mathf.Floor((_climber.transform.position.y + (_gridSize.y / 2f)) / _gridSize.y));
 
             if (_previousGridPosition != _currentGridPosition)
             {
@@ -31,70 +35,93 @@ namespace Uphill.Scripts.Managers
                 _previousGridPosition = _currentGridPosition;
             }
 
-            foreach (var sectionController in _activeControllers)
+            foreach (var sectionSection in _activeSections)
             {
-                sectionController.Section.Update();
+                sectionSection.Update();
             }
         }
 
         private void ManageGrid()
         {
-            _activeControllers.Clear();
+            _activeSections.Clear();
 
-            for (var x = 0; x < _reachGridSize.x; x++) // TODO: Swap x with y
+            for (var y = 0; y < _reachGridSize.y; y++)
             {
-                for (var y1 = 0; y1 < _reachGridSize.y; y1++)
+                for (var x = 0; x < _reachGridSize.x; x++)
                 {
-                    var gridPosition = new Vector2(
-                        (-(int)_reachGridSize.x / 2) + x, (-(int)_reachGridSize.y / 2) + y1);
+                    var gridPosition = GetGridPosition(x, y) + _previousGridPosition;
+
                     if (_sectionGrid.TryGetValue(
-                        gridPosition + _previousGridPosition, out var previousSectionController))
+                        gridPosition, out var previousSectionSection))
                     {
-                        previousSectionController.Section.Disable();
-                        previousSectionController.gameObject.SetActive(false);
+                        previousSectionSection.Disable();
+                        previousSectionSection.gameObject.SetActive(false);
                     }
                 }
+            }
 
-                for (var y = 0; y < _reachGridSize.y; y++)
+            for (var y = 0; y < _reachGridSize.y; y++)
+            {
+                for (var x = 0; x < _reachGridSize.x; x++)
                 {
-                    var gridPosition = new Vector2(
-                        (-(int)_reachGridSize.x / 2) + x, (-(int)_reachGridSize.y / 2) + y);
-                    // if (_sectionGrid.TryGetValue(
-                    //     gridPosition + _previousGridPosition, out var previousSectionController))
-                    // {
-                    //     previousSectionController.Section.Disable();
-                    //     previousSectionController.gameObject.SetActive(false);
-                    // }
+                    var gridPosition = GetGridPosition(x, y) + _currentGridPosition;
 
                     if (_sectionGrid.TryGetValue(
-                        gridPosition + _currentGridPosition, out var sectionController))
+                        gridPosition, out var sectionSection))
                     {
-                        sectionController.gameObject.SetActive(true);
-                        sectionController.Section.Enable();
+                        sectionSection.gameObject.SetActive(true);
+                        sectionSection.Enable();
 
-                        _activeControllers.Add(sectionController);
+                        _activeSections.Add(sectionSection);
                     }
                     else
                     {
                         _sectionGrid.Add(
-                            gridPosition + _currentGridPosition,
-                            CreateSection(_sections[0], gridPosition));
+                            gridPosition, CreateSection(gridPosition));
                     }
                 }
             }
         }
 
-        private SectionController CreateSection(
-            SectionController prefab, Vector2 gridPosition)
+        private Vector2 GetGridPosition(float x, float y)
         {
-            var sectionController = Instantiate(
-                prefab,
-                new(gridPosition.x * _gridSize.x, gridPosition.y * _gridSize.y),
-                Quaternion.identity);
-            sectionController.transform.SetParent(_gridHolder);
-            sectionController.Section.Initialize();
+            return new Vector2(
+                (-(int)_reachGridSize.x / 2) + x,
+                (-(int)_reachGridSize.y / 2) + y);
+        }
 
-            return sectionController;
+        private SectionBase CreateSection(Vector2 gridPosition)
+        {
+            var sectionPosition = new Vector2(
+                gridPosition.x * _gridSize.x,
+                gridPosition.y * _gridSize.y);
+
+            var section = Instantiate(
+                GetNextSection(sectionPosition.y), sectionPosition, Quaternion.identity);
+
+            section.transform.SetParent(_gridHolder);
+            section.Initialize();
+
+            return section;
+        }
+
+        private SectionBase GetNextSection(float height)
+        {
+            if (_sections.Count <= 1)
+            {
+                return _sections.FirstOrDefault();
+            }
+
+            for (var i = 0; i < _sections.Count - 1; i++)
+            {
+                if (_sections[i].OperatingHeight <= height
+                    && _sections[i + 1].OperatingHeight > height)
+                {
+                    return _sections[i];
+                }
+            }
+
+            return _sections.LastOrDefault();
         }
     }
 }

@@ -9,7 +9,7 @@ namespace Uphill.Scripts
 {
     public class Climber : MonoBehaviour
     {
-        [SerializeField] private List<LimbHitbox> _hitboxes = default!;
+        [SerializeField] private LimbHitbox _hitbox = default!;
 
         [SerializeField] private Limb _leftArm = default!;
         [SerializeField] private Limb _rightArm = default!;
@@ -40,11 +40,7 @@ namespace Uphill.Scripts
                 { LimbType.Right_Leg, _rightLeg },
             };
 
-            // TODO: Should be handled inside GameManager
-            foreach (var hitbox in _hitboxes)
-            {
-                hitbox.Initiated += OnHitboxInitiated;
-            }
+            _hitbox.Initiated += OnHitboxInitiated;
 
             foreach (var limb in _limbs.Values)
             {
@@ -59,32 +55,45 @@ namespace Uphill.Scripts
                 return;
             }
 
-            if (_limbs.TryGetValue(eventArgs.LimbType, out var limb))
+            var closestLimb = default(Limb);
+            var closestDistance = -1f;
+            foreach (var limb in _limbs.Values)
             {
-                limb.Stretch(eventArgs.Delta.normalized);
+                var direction = eventArgs.InitialPosition
+                    - (Vector2)Camera.main.WorldToScreenPoint(limb.transform.position);
+
+                if (closestDistance < 0 || direction.magnitude < closestDistance)
+                {
+                    closestDistance = direction.magnitude;
+                    closestLimb = limb;
+                }
             }
+
+            closestLimb?.Stretch(eventArgs.Delta.normalized);
         }
 
         private void OnLimbEntered(LimbEnteredEventArgs eventArgs)
         {
-            if (_limbs.ContainsKey(eventArgs.LimbType))
+            if (!_limbs.ContainsKey(eventArgs.LimbType))
             {
-                var leftDirection = _leftArm.Grabber.transform.position - _leftLeg.Grabber.transform.position;
-                var rightDirection = _rightArm.Grabber.transform.position - _rightLeg.Grabber.transform.position;
-
-                _sourcePosition = transform.position;
-                _destinationPosition = GetOffsetPosition();
-
-                _sourceRotation = transform.rotation;
-                _destinationRotation = Quaternion.LookRotation(
-                    transform.forward,
-                    ((leftDirection + rightDirection) / 2f).normalized);
-
-                _transformTweener?.Kill();
-                _transformTweener = DOVirtual
-                    .Float(0, 1, _adjustmentDuration, OnUpdateTransform)
-                    .SetEase(Ease.Linear);
+                return;
             }
+
+            var leftDirection = _leftArm.Grabber.transform.position - _leftLeg.Grabber.transform.position;
+            var rightDirection = _rightArm.Grabber.transform.position - _rightLeg.Grabber.transform.position;
+
+            _sourcePosition = transform.position;
+            _destinationPosition = GetOffsetPosition();
+
+            _sourceRotation = transform.rotation;
+            _destinationRotation = Quaternion.LookRotation(
+                transform.forward,
+                ((leftDirection + rightDirection) / 2f).normalized);
+
+            _transformTweener?.Kill();
+            _transformTweener = DOVirtual
+                .Float(0, 1, _adjustmentDuration, OnUpdateTransform)
+                .SetEase(Ease.Linear);
         }
 
         private void OnUpdateTransform(float percentage)
@@ -95,9 +104,9 @@ namespace Uphill.Scripts
                     _destinationPosition,
                     _positionCurve.Evaluate(percentage)),
                 Quaternion.LerpUnclamped(
-                _sourceRotation,
-                _destinationRotation,
-                _rotationCurve.Evaluate(percentage)));
+                    _sourceRotation,
+                    _destinationRotation,
+                    _rotationCurve.Evaluate(percentage)));
 
             foreach (var limb in _limbs.Values)
             {
@@ -118,10 +127,7 @@ namespace Uphill.Scripts
 
         private void OnDestroy()
         {
-            foreach (var hitbox in _hitboxes)
-            {
-                hitbox.Initiated -= OnHitboxInitiated;
-            }
+            _hitbox.Initiated -= OnHitboxInitiated;
 
             foreach (var limb in _limbs.Values)
             {
